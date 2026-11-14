@@ -1,0 +1,6 @@
+#!/bin/sh
+# Reuse the resident collector and desktop surfaces.
+if quickshell ipc --config undertow call undertow show 2>/dev/null; then
+    exit 0
+fi
+UNDERTOW_WINDOW=1 exec quickshell --config undertow --no-duplicate --daemonize

@@ -21,6 +21,25 @@ that the two together come to the windows' opacity. Hyprland blurs what is
 behind, as for the bar, through a layer rule for `undertow-desktop` in
 `~/.config/hypr/looknfeel.lua`.
 
+## Install
+
+```sh
+./install.sh             # copy the app into ~/.config/quickshell/undertow
+./install.sh --link      # link it to this checkout instead, for working on it
+./install.sh --uninstall
+```
+
+Either way it also installs the `undertow` launcher in `~/.local/bin` and an
+app launcher entry. With `--link`, `~/.config/quickshell/undertow` is a link to
+this checkout, so a saved edit here is what the running app reloads (see
+*Changes apply themselves*); a copy install picks up a newer copy the same way
+when the script is run again. A hand-made folder already at that path is kept
+as `~/.config/quickshell/.undertow.bak.<timestamp>`. Starting with Hyprland and
+the blur behind the dashboard are lines in your own Hyprland config; the script
+says what to add when it finds neither.
+
+## Using it
+
 - F11 or the expand button: fullscreen. Escape: leave fullscreen.
 - Space or Pause: freeze the displayed history. Collection continues.
 - Hover a chart: inspect the same timestamp in all four graphs.
