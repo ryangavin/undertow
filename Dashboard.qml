@@ -1,55 +1,92 @@
 import QtQuick
 import QtQuick.Layouts
 
-RowLayout {
+GridLayout {
     id: view
     required property var dashboard
     readonly property var root: dashboard
     property bool desktop: false
     property bool animate: false
     signal expand()
-    spacing: 14
-    // The graphs keep the left two thirds; the app table takes the right third.
+    // Landscape: the graphs keep the left two thirds and the app table takes
+    // the right third. Portrait (a screen turned on its side): the app table
+    // goes beneath the graphs, at the full width.
+    readonly property bool stacked: height > width
+    columns: stacked ? 1 : 2
+    rowSpacing: 14; columnSpacing: 14
+    // How wide the graphs' column is, from the dashboard's own size rather
+    // than from what the column holds, so what fits in it cannot feed back
+    // into how wide it is.
+    readonly property real mainWidth: stacked ? width : (width - columnSpacing) * 2 / 3
     ColumnLayout {
-        Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 2
+        Layout.fillWidth: true; Layout.fillHeight: true
+        Layout.preferredWidth: 2; Layout.preferredHeight: view.stacked ? 3 : -1
         spacing: 12
-        RowLayout {
+        // The controls sit beside the title when there is room for them in
+        // one line, and beneath it otherwise, wrapping onto as many lines as
+        // they need.
+        GridLayout {
+            id: header
+            Layout.fillWidth: true
+            readonly property bool roomy: view.mainWidth >= title.implicitWidth + controls.oneLine + 24
+            columns: roomy ? 3 : 1
+            rowSpacing: 10
             ColumnLayout {
+                id: title
                 spacing: 3
                 Label { text: "undertow"; font.pixelSize: 28; font.weight: Font.DemiBold; font.letterSpacing: -1; color: "#eaf2fc" }
                 Label { text: "Four signals. One machine." }
             }
-            Item { Layout.fillWidth: true }
-            Label { text: root.stale ? "● Collector offline" : root.paused ? "Ⅱ Inspecting" : "● Live · 1s"; color: root.stale ? "#e8bf80" : "#75dfb4"; Layout.rightMargin: 8 }
-            Chip { alpha: root.cardAlpha; text: root.details ? "Overview" : "Hardware"; selected: root.details; onClicked: root.details = !root.details }
-            Repeater {
-                model: [{label: "2m", seconds: 120}, {label: "15m", seconds: 900}, {label: "1h", seconds: 3600}]
-                Chip { required property var modelData; alpha: root.cardAlpha; text: modelData.label; selected: root.rangeSeconds === modelData.seconds; onClicked: root.rangeSeconds = modelData.seconds }
+            Item { visible: header.roomy; Layout.fillWidth: true }
+            Flow {
+                id: controls
+                spacing: 5
+                // Their width in one line; none of them changes with the space given.
+                readonly property real oneLine: {
+                    let total = 0, count = 0;
+                    for (const item of children)
+                        if (item.implicitWidth > 0) { total += item.implicitWidth; count++; }
+                    return total + Math.max(0, count - 1) * spacing;
+                }
+                Layout.fillWidth: !header.roomy
+                Layout.preferredWidth: header.roomy ? oneLine : -1
+                Label { text: root.stale ? "● Collector offline" : root.paused ? "Ⅱ Inspecting" : "● Live · 1s"; color: root.stale ? "#e8bf80" : "#75dfb4"; rightPadding: 8; height: 34; verticalAlignment: Text.AlignVCenter }
+                Chip { alpha: root.cardAlpha; text: root.details ? "Overview" : "Hardware"; selected: root.details; onClicked: root.details = !root.details }
+                Repeater {
+                    model: [{label: "2m", seconds: 120}, {label: "15m", seconds: 900}, {label: "1h", seconds: 3600}]
+                    Chip { required property var modelData; alpha: root.cardAlpha; text: modelData.label; selected: root.rangeSeconds === modelData.seconds; onClicked: root.rangeSeconds = modelData.seconds }
+                }
+                // How many of the busiest each graph draws beside its total.
+                Label { text: "Top"; color: "#68788f"; leftPadding: 6; height: 34; verticalAlignment: Text.AlignVCenter }
+                Repeater {
+                    model: [{label: "Off", count: 0}, {label: "3", count: 3}, {label: "5", count: 5}, {label: "10", count: 10}]
+                    Chip { required property var modelData; alpha: root.cardAlpha; text: modelData.label; selected: root.lineCount === modelData.count; onClicked: root.lineCount = modelData.count }
+                }
+                Chip { alpha: root.cardAlpha; text: root.paused ? "Resume" : "Pause"; selected: root.paused; onClicked: root.pause() }
+                Chip { alpha: root.cardAlpha; text: "Waves"; selected: root.motion; onClicked: root.motion = !root.motion }
+                Chip { alpha: root.cardAlpha; text: view.desktop ? "Open ↗" : "⛶"; onClicked: view.expand() }
             }
-            // How many of the busiest each graph draws beside its total.
-            Label { text: "Top"; color: "#68788f"; Layout.leftMargin: 6 }
-            Repeater {
-                model: [{label: "Off", count: 0}, {label: "3", count: 3}, {label: "5", count: 5}, {label: "10", count: 10}]
-                Chip { required property var modelData; alpha: root.cardAlpha; text: modelData.label; selected: root.lineCount === modelData.count; onClicked: root.lineCount = modelData.count }
-            }
-            Chip { alpha: root.cardAlpha; text: root.paused ? "Resume" : "Pause"; selected: root.paused; onClicked: root.pause() }
-            Chip { alpha: root.cardAlpha; text: "Waves"; selected: root.motion; onClicked: root.motion = !root.motion }
-            Chip { alpha: root.cardAlpha; text: view.desktop ? "Open ↗" : "⛶"; onClicked: view.expand() }
         }
         Waves { dashboard: root; moving: root.motion && !root.paused && (view.animate || (view.desktop && hovered)); Layout.fillWidth: true; Layout.preferredHeight: root.details ? 80 : 110 }
-        RowLayout {
+        // Two readings side by side, or one above the other when they do not fit.
+        GridLayout {
+            id: readings
             Layout.fillWidth: true
+            columns: view.mainWidth >= z13.implicitWidth + limits.implicitWidth + 30 ? 2 : 1
+            rowSpacing: 4
             Label {
+                id: z13
                 text: (root.latest.z13Connected ? "z13ctl · " + root.latest.profile + " · " + (root.latest.onAC ? "AC" : "Battery") : "z13ctl unavailable")
                       + "   /   Fan " + (root.latest.fanRpm == null ? "—" : root.latest.fanRpm + " RPM")
                 Layout.fillWidth: true
             }
-            Label { text: "Power limits: " + root.watts(root.latest.pl1) + " sustained  ·  " + root.watts(root.latest.pl2) + " short  ·  " + root.watts(root.latest.pl3) + " fast" }
+            Label { id: limits; text: "Power limits: " + root.watts(root.latest.pl1) + " sustained  ·  " + root.watts(root.latest.pl2) + " short  ·  " + root.watts(root.latest.pl3) + " fast"; Layout.fillWidth: readings.columns === 1 }
         }
         GridLayout {
-            columns: 2; columnSpacing: 14; rowSpacing: 14; Layout.fillWidth: true; Layout.fillHeight: true
+            // Side by side in pairs; one beneath another, at the full width, when the dashboard stands upright.
+            columns: view.stacked ? 1 : 2; columnSpacing: 14; rowSpacing: 14; Layout.fillWidth: true; Layout.fillHeight: true
             Graph {
-                dashboard: root; Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1; Layout.preferredHeight: root.details ? 1.4 : 1
+                dashboard: root; compact: view.stacked; Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1; Layout.preferredHeight: root.details ? 1.4 : 1
                 heading: root.details ? "CPU cores · power" : "CPU"; metric: root.details ? "cpuPower" : "cpu"; accent: "#67dcec"
                 ceiling: root.details ? root.powerCeiling : 100; unit: root.details ? "W" : "%"
                 valueText: root.details ? root.watts(root.inspected.cpuPower) : root.percent(root.inspected.cpu)
@@ -83,7 +120,7 @@ RowLayout {
                 }
             }
             Graph {
-                dashboard: root; Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1; Layout.preferredHeight: root.details ? 1.4 : 1
+                dashboard: root; compact: view.stacked; Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1; Layout.preferredHeight: root.details ? 1.4 : 1
                 heading: root.details ? "GPU · GFX power" : "GPU"; metric: root.details ? "gpuPower" : "gpu"; accent: "#b49afa"
                 ceiling: root.details ? root.powerCeiling : 100; unit: root.details ? "W" : "%"
                 valueText: root.details ? root.watts(root.inspected.gpuPower) : root.percent(root.inspected.gpu)
@@ -107,7 +144,7 @@ RowLayout {
                 }
             }
             Graph {
-                dashboard: root; Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1; Layout.preferredHeight: 1
+                dashboard: root; compact: view.stacked; Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1; Layout.preferredHeight: 1
                 heading: root.details ? "GPU memory · GTT + VRAM" : "Memory"; metric: root.details ? "gtt" : "mem"; secondary: root.details ? "vram" : ""; accent: "#e8bf80"
                 // With contributor lines the total is GTT and VRAM together, as each app's figure is.
                 lines: root.details ? "gpumem" : "mem"
@@ -123,7 +160,7 @@ RowLayout {
                         + (root.details ? (contributing ? "\nGTT budget shares system RAM; it is not extra capacity." : "\nVRAM · blue. GTT budget shares system RAM; it is not extra capacity.") : "")
             }
             Graph {
-                dashboard: root; Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1; Layout.preferredHeight: 1
+                dashboard: root; compact: view.stacked; Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1; Layout.preferredHeight: 1
                 heading: root.details ? "APU · total power" : "Network"; metric: root.details ? "apuPower" : "down"; secondary: root.details ? "" : "up"; accent: "#75dfb4"
                 lines: root.details ? "apuPower" : ""
                 format: v => v.toFixed(1) + " W"
@@ -137,10 +174,14 @@ RowLayout {
                                      : "↓ Download · green     ↑ Upload · blue  /  " + root.bytes(root.inspected.up) + "/s ↑"
             }
         }
-        RowLayout {
-            Label { text: view.desktop ? "Desktop layer · behind your windows  /  Hover a graph to inspect" : "Hover to inspect  ·  Space to pause  ·  F11 fullscreen  ·  Close to return to desktop"; font.pixelSize: 12; Layout.fillWidth: true }
-            Label { text: root.history.length + " samples  /  session history"; font.pixelSize: 12 }
+        GridLayout {
+            id: footing
+            Layout.fillWidth: true
+            columns: view.mainWidth >= hint.implicitWidth + sampleCount.implicitWidth + 30 ? 2 : 1
+            rowSpacing: 4
+            Label { id: hint; text: view.desktop ? "Desktop layer · behind your windows  /  Hover a graph to inspect" : "Hover to inspect  ·  Space to pause  ·  F11 fullscreen  ·  Close to return to desktop"; font.pixelSize: 12; Layout.fillWidth: true }
+            Label { id: sampleCount; text: root.history.length + " samples  /  session history"; font.pixelSize: 12; Layout.fillWidth: footing.columns === 1 }
         }
     }
-    Sidebar { dashboard: view.dashboard; Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1 }
+    Sidebar { dashboard: view.dashboard; Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1; Layout.preferredHeight: view.stacked ? 2 : -1 }
 }

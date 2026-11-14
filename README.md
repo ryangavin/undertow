@@ -7,7 +7,11 @@ collector. Launch **Undertow** from the app launcher, run `undertow`, or click
 **Open ↗** on the desktop to open its interactive window.
 
 It keeps out of the space the bar (or any panel) reserves, on whichever edge
-the bar is docked, and centres in what is left. A screen whose windows cover
+the bar is docked, and centres in what is left. On a screen turned upright (taller
+than it is wide) it takes the screen's height: the four graphs stand one
+beneath another at the full width, each with its value beside its heading,
+and the process sidebar goes beneath them. Controls and readings that do not
+fit on one line wrap onto the next. A screen whose windows cover
 three quarters of it, or that shows a fullscreen window, has its dashboard put
 away (not drawn, not updated) until it is uncovered; this is where most of
 Undertow's CPU went. Where windows sit comes from Hyprland, asked again when
