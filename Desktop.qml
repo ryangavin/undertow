@@ -87,8 +87,10 @@ Scope {
                         id: desktopContent
                         anchors.centerIn: parent
                         // Wider than it used to be: the app table takes a third.
+                        // A screen turned on its side gets its height too, with
+                        // the app table beneath the graphs.
                         width: Math.min(parent.width - 80, 2400)
-                        height: Math.min(parent.height - 110, 1100)
+                        height: Math.min(parent.height - 110, parent.height > parent.width ? 2400 : 1100)
                         dashboard: desktopRoot.dashboard; desktop: true
                         // Hover animates the strip; history still updates at 1 Hz.
                         animate: false

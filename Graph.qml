@@ -16,6 +16,11 @@ Rectangle {
     property string unit: "%"
     property string scaleText: ceiling.toFixed(0) + " " + unit
     property Component extra: null
+    // On an upright screen the graphs stand one beneath another: the value
+    // then shares the heading's line, leaving the height to the plot.
+    property bool compact: false
+    // Never squeezed below what it holds; the plot is what grows.
+    Layout.minimumHeight: content.implicitHeight + 44
     // Contributor lines: which of the dashboard's line sets this graph draws
     // ("" for none), how to write one of its values, and a note on where the
     // figures come from. `combine` makes the total the metric plus the secondary.
@@ -173,13 +178,17 @@ Rectangle {
     }
 
     ColumnLayout {
+        id: content
         anchors.fill: parent; anchors.margins: 22; spacing: 8
         RowLayout {
             Rectangle { width: 6; height: 6; radius: 3; color: card.accent }
-            Label { text: card.heading; color: "#e5edf7"; font.pixelSize: 16; font.weight: Font.DemiBold; Layout.fillWidth: true }
+            Label { text: card.heading; color: "#e5edf7"; font.pixelSize: 16; font.weight: Font.DemiBold; Layout.fillWidth: !card.compact }
+            Label { visible: card.compact; text: card.valueText; color: "#f0f5fc"; font.pixelSize: 22; font.weight: Font.Medium; Layout.leftMargin: 10; Layout.fillWidth: true }
             Label { text: card.detail; Layout.maximumWidth: card.width * 0.5 }
+            Label { visible: card.compact; text: card.scaleText; color: "#68788f"; Layout.leftMargin: 10 }
         }
         RowLayout {
+            visible: !card.compact
             Label { text: card.valueText; color: "#f0f5fc"; font.pixelSize: 36; font.weight: Font.Medium; Layout.fillWidth: true }
             Label { text: card.scaleText; color: "#68788f" }
         }
