@@ -249,3 +249,7 @@ Dependencies: Quickshell, Qt Quick/Layouts, Python 3; no web runtime or pip pack
 
 Autostart: `~/.config/hypr/autostart.lua`. Remove its Undertow line to disable
 startup. History does not outlive the login session.
+
+## License
+
+MIT. See `LICENSE`.
