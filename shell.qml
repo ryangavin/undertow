@@ -61,6 +61,9 @@ ShellRoot {
         // Which QML this run of the app loaded: the digest from the collector
         // that asked for the reload, handed on to the collector we start.
         property string loadedQml: ""
+        // Asleep: no collector, nothing drawn, no asking Hyprland where
+        // windows are; only the resident process and its history are kept.
+        property bool asleep: false
     }
     // The collector decides when to reload, after the files have held still.
     // Quickshell's own watcher reloads the instant one file is written, which
@@ -81,6 +84,27 @@ ShellRoot {
     property alias agentToggled: view.agentToggled
     property alias agentOrder: view.agentOrder
     property alias lineCount: view.lineCount
+    property alias asleep: view.asleep
+    // Put to sleep from the dashboard's Sleep button or `undertow` over IPC,
+    // woken from the note left on the desktop or by opening Undertow again.
+    // The hour of history is kept; the time asleep shows as a gap.
+    function sleep() {
+        if (asleep) return;
+        asleep = true;
+        windowShown = false;
+        restart.stop();
+        collector.running = false;
+        console.log("Asleep: collector stopped, dashboards put away");
+    }
+    function wake() {
+        if (!asleep) return;
+        asleep = false;
+        lastReceived = Date.now();
+        collector.running = true;
+        console.log("Awake");
+    }
+    function quit() { Qt.quit(); }
+    readonly property bool collecting: collector.running
     readonly property bool checking: Quickshell.env("QT_QPA_PLATFORM") === "offscreen"
     property bool desktopEnabled: !checking
     property bool windowShown: !desktopEnabled || Quickshell.env("UNDERTOW_WINDOW") === "1"
@@ -115,7 +139,7 @@ ShellRoot {
     onSlidingChanged: glide()
     // About a screen pixel a step on the two-minute view: the plots move 7 to
     // 10 device pixels a second, and every step redraws the screen.
-    Timer { interval: 150; running: controller.sliding; repeat: true; onTriggered: controller.glide() }
+    Timer { interval: 150; running: controller.sliding && !controller.asleep; repeat: true; onTriggered: controller.glide() }
 
     property var inspected: {
         if (hoverFraction < 0) return source.length ? source[source.length - 1] : {};
@@ -271,7 +295,7 @@ ShellRoot {
         command: ["python3", "-u", Qt.resolvedUrl("metrics.py").toString().replace("file://", "")]
             .concat(controller.checking ? ["--no-history"] : [])
             .concat(view.loadedQml ? ["--loaded-qml=" + view.loadedQml] : [])
-        running: true
+        running: !view.asleep
         stdout: SplitParser {
             onRead: data => {
                 try {
@@ -338,15 +362,22 @@ ShellRoot {
             }
         }
         // It leaves when its own code changes, and may crash: start it again
-        // either way. History is kept here, so the graphs carry on.
-        onExited: (exitCode, exitStatus) => { console.log("Collector stopped (" + exitCode + "), starting it again"); restart.start(); }
+        // either way, unless it was stopped for sleep. History is kept here,
+        // so the graphs carry on.
+        onExited: (exitCode, exitStatus) => {
+            if (controller.asleep) return;
+            console.log("Collector stopped (" + exitCode + "), starting it again");
+            restart.start();
+        }
     }
     Timer { id: restart; interval: 2000; onTriggered: collector.running = true }
-    Timer { interval: 2000; running: true; repeat: true; onTriggered: controller.stale = !collector.running || (controller.lastReceived > 0 && Date.now() - controller.lastReceived > 4000) }
+    Timer { interval: 2000; running: !controller.asleep; repeat: true; onTriggered: controller.stale = !collector.running || (controller.lastReceived > 0 && Date.now() - controller.lastReceived > 4000) }
     IpcHandler {
         target: "undertow"
-        function show(): void { controller.windowShown = true; }
-        function quit(): void { Qt.quit(); }
+        function show(): void { controller.wake(); controller.windowShown = true; }
+        function sleep(): void { controller.sleep(); }
+        function wake(): void { controller.wake(); }
+        function quit(): void { controller.quit(); }
         // What the running app holds, for checking it without seeing the screen.
         function status(): string {
             return JSON.stringify({
@@ -362,7 +393,7 @@ ShellRoot {
                 lineSets: Object.keys(controller.lineSeries).map(k => k + ":" + controller.lineSeries[k].length).join(" "),
                 cpuLines: (controller.lineSeries.cpu || controller.lineSeries.cpuPower || []).slice(0, 3).map(l => l.name),
                 sidebar: controller.sidebarTab + "/" + controller.procMode + (controller.nameFilter ? "/" + controller.nameFilter : "") + (controller.treeRoot ? "/tree " + controller.treeRoot : ""),
-                collector: collector.running ? "running" : "stopped", stale: controller.stale, paused: controller.paused,
+                collector: collector.running ? "running" : "stopped", asleep: controller.asleep, stale: controller.stale, paused: controller.paused,
                 view: controller.details ? "hardware" : "overview", range: controller.rangeSeconds, order: controller.appOrder,
                 loadedQml: view.loadedQml
             });

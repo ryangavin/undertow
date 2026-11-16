@@ -74,7 +74,14 @@ says what to add when it finds neither.
   everything it started beneath it.
 - **Top · Off/3/5/10**: each graph also draws its busiest contributors as lines.
 - Ctrl+Q or close the interactive window: return to the desktop; collection continues.
-- To stop completely: `quickshell ipc --config undertow call undertow quit`.
+- **Sleep** (top right): stop collecting and put every dashboard away, keeping
+  Undertow resident with its hour of history. Asleep it uses no CPU: no
+  collector, nothing drawn, Hyprland not asked where windows are. Each screen
+  keeps a small note with **Wake** and **Quit**; opening Undertow from the app
+  launcher or running `undertow` wakes it too. The time asleep shows as a gap.
+- **Quit** (top right): end Undertow. Start it again from the app launcher or
+  with `undertow`; the hour of history is still there until logout.
+- Over IPC: `quickshell ipc --config undertow call undertow sleep`, `wake` or `quit`.
 
 History is collected once per second and bounded to one hour. It is also kept
 in `$XDG_RUNTIME_DIR/undertow/history.jsonl`, which lives in memory and is

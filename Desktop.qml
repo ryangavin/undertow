@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Wayland
@@ -6,12 +7,17 @@ import Quickshell.Wayland
 Scope {
     id: desktopRoot
     property var dashboard: null
+    // Asleep, nothing here asks Hyprland anything or draws the dashboard;
+    // each screen keeps only a small note to wake it from.
+    readonly property bool asleep: dashboard ? dashboard.asleep : false
+    onAsleepChanged: if (!asleep) Hyprland.refreshToplevels()
 
     // Where windows sit is only in Hyprland's own report of them, which is not
     // kept current by itself: ask again when windows come, go, move or change
     // focus, and every ten seconds for resizes, which send no event.
     Connections {
         target: Hyprland
+        enabled: !desktopRoot.asleep
         function onRawEvent(event) {
             if (["openwindow", "closewindow", "movewindowv2", "changefloatingmode", "fullscreen", "workspacev2",
                  "focusedmonv2", "activewindowv2"].includes(event.name))
@@ -19,7 +25,7 @@ Scope {
         }
     }
     Timer { id: refresh; interval: 150; onTriggered: Hyprland.refreshToplevels() }
-    Timer { interval: 10000; running: true; repeat: true; onTriggered: Hyprland.refreshToplevels() }
+    Timer { interval: 10000; running: !desktopRoot.asleep; repeat: true; onTriggered: Hyprland.refreshToplevels() }
     Component.onCompleted: Hyprland.refreshToplevels()
 
     Variants {
@@ -52,7 +58,7 @@ Scope {
                 return monitor ? monitor.activeWorkspace : null;
             }
             readonly property bool covered: {
-                if (!workspace) return false;
+                if (desktopRoot.asleep || !workspace) return false;
                 if (workspace.hasFullscreen) return true;
                 const left = modelData.x, top = modelData.y, right = left + modelData.width, bottom = top + modelData.height;
                 let area = 0;
@@ -72,11 +78,30 @@ Scope {
             onShownChanged: console.log("Desktop dashboard on " + modelData.name + (shown ? ": shown" : ": put away, covered by windows"))
             Timer { id: hide; interval: 2000; onTriggered: surface.shown = !surface.covered }
 
-            mask: Region { item: content.item ? content.item.board : null }
+            mask: Region { item: desktopRoot.asleep ? (note.item || null) : content.item ? content.item.board : null }
+            Loader {
+                id: note
+                anchors.centerIn: parent
+                active: desktopRoot.asleep
+                sourceComponent: Rectangle {
+                    implicitWidth: noteRow.implicitWidth + 36; implicitHeight: 64
+                    radius: 18; border.color: "#263140"
+                    color: Qt.rgba(0.043, 0.071, 0.110, desktopRoot.dashboard.backdropAlpha)
+                    RowLayout {
+                        id: noteRow
+                        anchors.centerIn: parent
+                        spacing: 10
+                        Label { text: "undertow"; font.pixelSize: 20; font.weight: Font.DemiBold; font.letterSpacing: -0.5; color: "#eaf2fc" }
+                        Label { text: "Asleep · collecting nothing"; color: "#68788f"; Layout.rightMargin: 6 }
+                        Chip { text: "Wake"; alpha: desktopRoot.dashboard.cardAlpha; onClicked: desktopRoot.dashboard.wake() }
+                        Chip { text: "Quit"; alpha: desktopRoot.dashboard.cardAlpha; onClicked: desktopRoot.dashboard.quit() }
+                    }
+                }
+            }
             Loader {
                 id: content
                 anchors.fill: parent
-                active: surface.shown
+                active: surface.shown && !desktopRoot.asleep
                 sourceComponent: Item {
                     readonly property alias board: desktopContent
                     Rectangle {

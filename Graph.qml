@@ -35,6 +35,10 @@ Rectangle {
     // The lines are drawn on the GPU (Qt Quick Shapes); what the CPU does is
     // turn samples into polylines, in rebuild(), once a sample or when what is
     // drawn changes. Highlighting a line only changes its width and opacity.
+    // A rebuild asked for just before the graph is put away (the window
+    // closed, Undertow put to sleep) arrives after it is gone: skip it then.
+    property bool alive: true
+    Component.onDestruction: alive = false
     function later() { Qt.callLater(card.rebuild); }
     onMetricChanged: later()
     onSecondaryChanged: later()
@@ -129,6 +133,7 @@ Rectangle {
         return out.filter(line => line.length > 0);
     }
     function rebuild() {
+        if (!card.alive) return;
         const w = plot.width, h = graph.height - 2;
         if (w <= 0 || h <= 0) return;
         const end = dashboard.endTime;
