@@ -24,47 +24,66 @@ GridLayout {
         spacing: 12
         // The controls sit beside the title when there is room for them in
         // one line, and beneath it otherwise, wrapping onto as many lines as
-        // they need.
-        GridLayout {
-            id: header
+        // they need. Sleep and Quit, which act on the whole app, end the line,
+        // or stay in the top corner beside the title when the rest wraps.
+        Item {
             Layout.fillWidth: true
-            readonly property bool roomy: view.mainWidth >= title.implicitWidth + controls.oneLine + 24
-            columns: roomy ? 3 : 1
-            rowSpacing: 10
-            ColumnLayout {
-                id: title
-                spacing: 3
-                Label { text: "undertow"; font.pixelSize: 28; font.weight: Font.DemiBold; font.letterSpacing: -1; color: "#eaf2fc" }
-                Label { text: "Four signals. One machine." }
+            implicitHeight: header.implicitHeight
+            GridLayout {
+                id: header
+                anchors { left: parent.left; right: parent.right; top: parent.top }
+                readonly property bool roomy: view.mainWidth >= title.implicitWidth + controls.oneLine + appActions.width + 40
+                columns: roomy ? 3 : 1
+                rowSpacing: 10
+                ColumnLayout {
+                    id: title
+                    // Narrow, the title's line also holds Sleep and Quit.
+                    Layout.rightMargin: header.roomy ? 0 : appActions.width + 10
+                    spacing: 3
+                    Label { text: "undertow"; font.pixelSize: 28; font.weight: Font.DemiBold; font.letterSpacing: -1; color: "#eaf2fc" }
+                    Label { text: "Four signals. One machine." }
+                }
+                Item { visible: header.roomy; Layout.fillWidth: true }
+                Flow {
+                    id: controls
+                    spacing: 5
+                    // Their width in one line; none of them changes with the space given.
+                    readonly property real oneLine: {
+                        let total = 0, count = 0;
+                        for (const item of children)
+                            if (item.implicitWidth > 0) { total += item.implicitWidth; count++; }
+                        return total + Math.max(0, count - 1) * spacing;
+                    }
+                    Layout.fillWidth: !header.roomy
+                    Layout.preferredWidth: header.roomy ? oneLine : -1
+                    Layout.rightMargin: header.roomy ? appActions.width + 10 : 0
+                    Label { text: root.stale ? "● Collector offline" : root.paused ? "Ⅱ Inspecting" : "● Live · 1s"; color: root.stale ? "#e8bf80" : "#75dfb4"; rightPadding: 8; height: 34; verticalAlignment: Text.AlignVCenter }
+                    Chip { alpha: root.cardAlpha; text: root.details ? "Overview" : "Hardware"; selected: root.details; onClicked: root.details = !root.details }
+                    Repeater {
+                        model: [{label: "2m", seconds: 120}, {label: "15m", seconds: 900}, {label: "1h", seconds: 3600}]
+                        Chip { required property var modelData; alpha: root.cardAlpha; text: modelData.label; selected: root.rangeSeconds === modelData.seconds; onClicked: root.rangeSeconds = modelData.seconds }
+                    }
+                    // How many of the busiest each graph draws beside its total.
+                    Label { text: "Top"; color: "#68788f"; leftPadding: 6; height: 34; verticalAlignment: Text.AlignVCenter }
+                    Repeater {
+                        model: [{label: "Off", count: 0}, {label: "3", count: 3}, {label: "5", count: 5}, {label: "10", count: 10}]
+                        Chip { required property var modelData; alpha: root.cardAlpha; text: modelData.label; selected: root.lineCount === modelData.count; onClicked: root.lineCount = modelData.count }
+                    }
+                    Chip { alpha: root.cardAlpha; text: root.paused ? "Resume" : "Pause"; selected: root.paused; onClicked: root.pause() }
+                    Chip { alpha: root.cardAlpha; text: "Waves"; selected: root.motion; onClicked: root.motion = !root.motion }
+                    Chip { alpha: root.cardAlpha; text: view.desktop ? "Open ↗" : "⛶"; onClicked: view.expand() }
+                }
             }
-            Item { visible: header.roomy; Layout.fillWidth: true }
-            Flow {
-                id: controls
+            // Sleep stops collecting and drawing until woken; Quit ends Undertow.
+            // They act on the whole app, so they keep the top right corner: at
+            // the end of the controls' line, or beside the title when that wraps.
+            Row {
+                id: appActions
+                anchors.right: parent.right
+                y: header.roomy ? controls.y : 0
                 spacing: 5
-                // Their width in one line; none of them changes with the space given.
-                readonly property real oneLine: {
-                    let total = 0, count = 0;
-                    for (const item of children)
-                        if (item.implicitWidth > 0) { total += item.implicitWidth; count++; }
-                    return total + Math.max(0, count - 1) * spacing;
-                }
-                Layout.fillWidth: !header.roomy
-                Layout.preferredWidth: header.roomy ? oneLine : -1
-                Label { text: root.stale ? "● Collector offline" : root.paused ? "Ⅱ Inspecting" : "● Live · 1s"; color: root.stale ? "#e8bf80" : "#75dfb4"; rightPadding: 8; height: 34; verticalAlignment: Text.AlignVCenter }
-                Chip { alpha: root.cardAlpha; text: root.details ? "Overview" : "Hardware"; selected: root.details; onClicked: root.details = !root.details }
-                Repeater {
-                    model: [{label: "2m", seconds: 120}, {label: "15m", seconds: 900}, {label: "1h", seconds: 3600}]
-                    Chip { required property var modelData; alpha: root.cardAlpha; text: modelData.label; selected: root.rangeSeconds === modelData.seconds; onClicked: root.rangeSeconds = modelData.seconds }
-                }
-                // How many of the busiest each graph draws beside its total.
-                Label { text: "Top"; color: "#68788f"; leftPadding: 6; height: 34; verticalAlignment: Text.AlignVCenter }
-                Repeater {
-                    model: [{label: "Off", count: 0}, {label: "3", count: 3}, {label: "5", count: 5}, {label: "10", count: 10}]
-                    Chip { required property var modelData; alpha: root.cardAlpha; text: modelData.label; selected: root.lineCount === modelData.count; onClicked: root.lineCount = modelData.count }
-                }
-                Chip { alpha: root.cardAlpha; text: root.paused ? "Resume" : "Pause"; selected: root.paused; onClicked: root.pause() }
-                Chip { alpha: root.cardAlpha; text: "Waves"; selected: root.motion; onClicked: root.motion = !root.motion }
-                Chip { alpha: root.cardAlpha; text: view.desktop ? "Open ↗" : "⛶"; onClicked: view.expand() }
+                Chip { alpha: root.cardAlpha; text: "Sleep"; onClicked: root.sleep() }
+                Chip { alpha: root.cardAlpha; text: "Quit"; onClicked: root.quit() }
             }
         }
         Waves { dashboard: root; moving: root.motion && !root.paused && (view.animate || (view.desktop && hovered)); Layout.fillWidth: true; Layout.preferredHeight: root.details ? 80 : 110 }

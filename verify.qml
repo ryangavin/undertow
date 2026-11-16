@@ -52,10 +52,42 @@ ShellRoot {
                 d.rangeSeconds = 120; d.hoverFraction = -1;
                 const started = d.dashboardContent.grabToImage(result => {
                     check(result.saveToFile(output), "Render capture saved");
-                    Qt.quit();
+                    d.sleep(); asleep.start();
                 });
                 check(started, "Render capture started");
-            } else Qt.quit();
+            } else { d.sleep(); asleep.start(); }
+        }
+    }
+    // Asleep, nothing is collected; woken, samples come again.
+    property int countAsleep: 0
+    function fail(message) { console.error("FAIL: " + message); Qt.exit(1); throw new Error(message); }
+    Timer {
+        id: asleep; interval: 1500
+        onTriggered: {
+            const d = app.item;
+            if (!d.asleep || d.windowShown) fail("Sleep puts Undertow away");
+            if (d.collecting) fail("Sleep stops the collector");
+            countAsleep = d.history.length;
+            awake.start();
+        }
+    }
+    Timer {
+        id: awake; interval: 2500
+        onTriggered: {
+            const d = app.item;
+            if (d.history.length !== countAsleep) fail("Nothing is collected while asleep");
+            d.wake();
+            woken.start();
+        }
+    }
+    Timer {
+        id: woken; interval: 3500
+        onTriggered: {
+            const d = app.item;
+            if (d.asleep || d.history.length <= countAsleep) fail("Waking starts collecting again");
+            if (!d.collecting) fail("Waking starts the collector");
+            console.log("PASS: sleep stops the collector and collects nothing; waking collects again");
+            Qt.quit();
         }
     }
 }
